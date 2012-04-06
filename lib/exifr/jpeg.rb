@@ -2,6 +2,7 @@
 
 require 'exifr'
 require 'stringio'
+require 'digest/sha1'
 
 module EXIFR
   # = JPEG decoder
@@ -25,6 +26,8 @@ module EXIFR
     attr_reader :exif_data # :nodoc:
     # raw APP1 frames
     attr_reader :app1s
+    # Digest
+    attr_reader :digest
 
     # +file+ is a filename or an IO object.  Hint: use StringIO when working with slurped data like blobs.
     def initialize(file)
@@ -101,7 +104,12 @@ module EXIFR
             unless length == 8 + components * 3
               raise MalformedJPEG, "frame length does not match number of components"
             end
-          when 0xD9, 0xDA;  break # EOI, SOS
+          when 0xD9, 0xDA
+            @digest = Digest::SHA1.new
+            while buffer = io.read(1024)
+              @digest << buffer
+            end
+            break # EOI, SOS
           when 0xFE;        (@comment ||= []) << io.readframe # COM
           when 0xE1;        @app1s << io.readframe # APP1, may contain EXIF tag
           else              io.readframe # ignore frame
